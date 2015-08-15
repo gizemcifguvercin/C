@@ -1,0 +1,249 @@
+#include <stdio.h>
+#include <stdlib.h>
+//C dilinde Öğrenci Bilgi Sistemi
+struct OGRENCI{
+    char ad[20];
+    char soyad[20];
+    int no;
+    int aldigi_ders_kodlari[10];
+};
+struct DERS{
+    char ders_adi[20];
+    int ders_kodu;
+};
+int ogrenci_sayisi_hesapla(FILE *optr){//program her acildiginda ogrenci sayisini bulur
+    int i=0;
+    struct OGRENCI Ogrenci={"","",0,{0}};
+    while(fread(&Ogrenci,sizeof(struct OGRENCI),1,optr)){
+        i++;
+    }
+    rewind(optr);
+    return i;
+}
+int ders_sayisi_hesapla(FILE *dptr){//program her acildiginda ders kaydi sayisini bulur
+
+    int i=0;
+    struct DERS Ders={"",0};
+    while(fread(&Ders,sizeof(struct DERS),1,dptr)){
+        i++;
+    }
+    rewind(dptr);
+    return i;
+}
+void ogrenci_ekle(FILE *optr,int *ogrenci_sayisi){
+
+    if(*ogrenci_sayisi>99){
+        printf("Ogrenci sayisi limiti asti.Ekleme yapilamiyor\n");
+        return;
+    }
+    struct OGRENCI Ogrenci={"","",0,{0}};
+    printf("Ad girin: ");
+    scanf("%s",Ogrenci.ad);
+    printf("Soyad girin: ");
+    scanf("%s",Ogrenci.soyad);
+    //ogrenci numarasi 1'den basliyor
+    Ogrenci.no=*ogrenci_sayisi+1;//her seferinde otomatik olarak ogrenci no atamasi icin
+    fseek(optr,(Ogrenci.no-1)*sizeof(struct OGRENCI),SEEK_SET);
+    fwrite(&Ogrenci,sizeof(struct OGRENCI),1,optr);
+    (*ogrenci_sayisi)+=1;
+
+    rewind(optr);
+}
+void ders_ekle(FILE *dptr,int *ders_kaydi_sayisi){
+     if(*ders_kaydi_sayisi>19){
+        printf("Ders kaydi sayisi limiti asti.Ekleme yapilamiyor\n");
+        return ;
+    }
+    struct DERS Ders={"",0};
+    //ders kodu bulundugu siraya gore verildi.
+    printf("Eklemek istediginiz dersin adini girin: ");
+    scanf("%s",Ders.ders_adi);
+    //ders kodu 1'den basliyor
+    Ders.ders_kodu=*ders_kaydi_sayisi+1;
+    fseek(dptr,(Ders.ders_kodu-1)*sizeof(struct DERS),SEEK_SET);
+    fwrite(&Ders,sizeof(struct DERS),1,dptr);
+    (*ders_kaydi_sayisi)+=1;
+    rewind(dptr);
+}
+void ogrenciyi_derse_kaydet(FILE *optr,FILE *dptr,int toplamders){
+    struct OGRENCI Ogrenci={"","",0,{0}};
+    struct DERS Ders={"",0};
+    int ogr_no,derskodu,kac_ders_var=0,i,varmi=0,counter=0;
+    printf("Ogrenci numarasini girin: ");
+    scanf("%d",&ogr_no);
+    int ogr_kontrol=ogrenci_sayisi_hesapla(optr);
+    if(ogr_no>ogr_kontrol|| ogr_no<0){
+        printf("Dosyada o numarada ogrenci yok. Ders kaydi yapilamadi!\n");
+        return;
+    }
+    //DERS EKLEMESI ICIN SECENEKLER EKRANA BASILDI
+    rewind(dptr);
+    rewind(optr);
+    printf("Asagidaki derslerden birini secin:\n");
+    printf("\n%-20s %-13s\n","Ders Adi","Ders Kodu");
+    printf("\n---------------------------------------");
+    while(fread(&Ders,sizeof(struct DERS),1,dptr)){
+        printf("\n%-20s %-13d\n",Ders.ders_adi,Ders.ders_kodu);
+    }
+    rewind(dptr);
+    rewind(optr);
+    printf("\nDers kodunu girin: ");
+    scanf("%d",&derskodu);
+    if(toplamders<derskodu) printf("Girilen kodda ders yok...\n");
+    else{//ders kodu dersler dosyasinda varsa
+        fseek(optr,(ogr_no-1)*sizeof(struct OGRENCI),SEEK_SET);//ders eklencek ogrenciye gelindi
+        fread(&Ogrenci,sizeof(struct OGRENCI),1,optr);
+        for(i=0;i<10;i++){//eklenmek istenen ders kodu ogrencinin aldigi ders kodlarinda var mi diye kontrol eder
+            if(derskodu==Ogrenci.aldigi_ders_kodlari[i]){
+                varmi++;
+            }
+        }
+        for(i=0;i<10;i++){
+            if(Ogrenci.aldigi_ders_kodlari[i]!=0){
+                counter++;
+            }
+        }
+        if(counter>=10){
+            printf("10 taneden fazla derse kaydolamazsiniz...\n");
+            return;
+        }
+        if(varmi==0){//ogrencinin ders kodu dizisinde, eklemek istedigi ders kodu yoksa kodu diziye ekler
+            for(i=0;i<10;i++){
+                if(Ogrenci.aldigi_ders_kodlari[i]!=0)
+                    kac_ders_var++;//onceden var olan kac ders oldugunu bulur
+            }
+            rewind(optr);
+            Ogrenci.aldigi_ders_kodlari[kac_ders_var]=derskodu;//ders kodu diziye atandi
+            fseek(optr,(ogr_no-1)*sizeof(struct OGRENCI),SEEK_SET);//degisen struct dosyaya tekrar yazildi
+            fwrite(&Ogrenci,sizeof(struct OGRENCI),1,optr);
+        }
+        else{
+            printf("Eklemek istediginiz dersi ogrenci zaten aliyor\n");
+        }
+    }
+    rewind(dptr);
+    rewind(optr);
+}
+void ad_kod_yaz(FILE *dptr,int x){//yazdirilacak ders kodunu alir ve ekrana basar
+    struct DERS Ders={"",0};
+    fread(&Ders,sizeof(struct DERS),1,dptr);
+    while(!feof(dptr)){
+        if(Ders.ders_kodu==x){
+            printf("\n%-20s %-13d\n",Ders.ders_adi,Ders.ders_kodu);
+        }
+        fread(&Ders,sizeof(struct DERS),1,dptr);
+    }
+    printf("\n");
+    rewind(dptr);
+}
+void ogrenci_derslerini_listele(FILE *optr,FILE *dptr,int ogr_kontrol){
+    int ogr_no,i,kontrol=0;
+    struct OGRENCI Ogrenci={"","",0,{0}};
+        printf("Listelemek istediginiz ogrencinin numarasini girin :\n");
+        scanf("%d",&ogr_no);
+        //ogrenci numarasi,dosyaya yazma sirasiyla ayni oldugu icin girilen sonuncu ogrenicinin nosundan buyuk ,1'den kucuk olamaz
+        if(ogr_no>ogr_kontrol || ogr_no<=0){//girilen ogrenci numarasinin sistemde olup olmadigini kontrol ediyor
+            printf("Dosyada o numarada ogrenci yok. Dersleri listelenemiyor!\n");
+            return;
+        }
+        fseek(optr,(ogr_no-1)*sizeof(struct OGRENCI),SEEK_SET );
+        fread(&Ogrenci,sizeof(struct OGRENCI),1,optr);
+        printf("%s %s adli ogrencinin aldigi dersler ve kodlari;\n",Ogrenci.ad,Ogrenci.soyad);
+        printf("\n%-20s %-13s\n","Ders Adi","Ders Kodu");
+        for(i=0;i<10;i++){
+            if(Ogrenci.aldigi_ders_kodlari[i]!=0){
+                  ad_kod_yaz(dptr,Ogrenci.aldigi_ders_kodlari[i]);//kod fonksiyona yollandi
+                  kontrol++;
+            }
+        }
+        if(kontrol==0)
+            printf("Girdiginiz ogrencinin sistemde Listenecek hic bir dersi yok\n");
+        rewind(dptr);
+        rewind(optr);
+}
+void dersi_alan_ogrenciler(FILE *optr,int toplamders){
+    int derskodual,j=0,k,sayac=0;
+    printf("Hangi dersi alan ogrencileri listelemek istersiniz, ders kodunu yazin: \n");
+    scanf("%d",&derskodual);
+    if(toplamders<derskodual ||derskodual<=0){
+         printf("O kodda ders sistemde bulunmamaktadir.\n");
+         return;
+    }
+    struct OGRENCI Ogrenci={"","",0,{0}};
+    printf("\n%-20s %-20s %-13s\n","ADI","SOYADI","NUMARASI");
+    printf("\n-------------------------------------------------------");
+
+    fread(&Ogrenci,sizeof(struct OGRENCI),1,optr);
+    while(!feof(optr)){
+        sayac++;
+        for(k=0;k<10;k++){
+            if(Ogrenci.aldigi_ders_kodlari[k]==derskodual){
+               j=1;
+            }
+        }
+        if(j==1){
+            printf("\n%-20s %-20s %-13d\n",Ogrenci.ad,Ogrenci.soyad,Ogrenci.no);
+        }
+        fread(&Ogrenci,sizeof(struct OGRENCI),1,optr);
+        j=0;
+    }
+    printf("\n");
+    if(sayac==0)
+        printf("Girdiginiz dersi alan hic bir ogrenci yok\n");
+
+    rewind(optr);
+}
+void menu_goster(FILE *optr,FILE *dptr){
+     int secim;
+     int ogrenci_sayisi=ogrenci_sayisi_hesapla(optr);
+     int ders_kaydi_sayisi=ders_sayisi_hesapla(dptr);
+     do{
+        printf("--------MENU---------\n");
+        printf("Ogrenci eklemek icin 1 yazin\n");
+        printf("Ders eklemek icin 2 yazin\n");
+        printf("Ogrenciyi derse kaydetmek icin 3 yazin\n");
+        printf("Ogrenci derslerini listelemek icin 4 yazin\n");
+        printf("Dersi alan ogrencilerin listesi icin 5 yazin\n");
+        printf("Cikmak icin 6 yazin\n");
+        printf("Seciminizi giriniz: ");
+        scanf("%d",&secim);
+        switch(secim){
+            case 1:
+                ogrenci_ekle(optr,&ogrenci_sayisi);
+                break;
+            case 2:
+                ders_ekle(dptr,&ders_kaydi_sayisi);
+                break;
+            case 3:
+                ogrenciyi_derse_kaydet(optr,dptr,ders_kaydi_sayisi);
+                break;
+            case 4:
+                ogrenci_derslerini_listele(optr,dptr,ogrenci_sayisi);
+                break;
+            case 5:
+                dersi_alan_ogrenciler(optr,ders_kaydi_sayisi);
+                break;
+            case 6:
+                printf("Program sonlandi.\n");
+                break;
+            default:
+                printf("Lutfen 1-6 arasi bir sayi girip seciminizi tekrar yapin! \n");
+            }
+        }while(secim!=6 );
+}
+int main(){
+    FILE *optr;
+    if((optr=fopen("ogrenci.bin","rb+"))==NULL){
+       printf("Dosya acilamadi.\n");
+       return 0;
+    }
+    FILE *dptr;
+    if((dptr=fopen("dersler.bin","rb+"))==NULL){
+       printf("Dosya acilamadi.\n");
+       return 0;
+    }
+    menu_goster(optr,dptr);
+    fclose(optr);
+    fclose(dptr);
+    return 0;
+}
